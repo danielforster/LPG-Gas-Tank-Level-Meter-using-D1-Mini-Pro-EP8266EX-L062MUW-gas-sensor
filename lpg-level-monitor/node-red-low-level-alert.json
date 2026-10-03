@@ -1,0 +1,122 @@
+[
+ {
+  "id": "43656ae40155494c",
+  "type": "tab",
+  "label": "LPG low level alert"
+ },
+ {
+  "id": "254fd90c82e44e40",
+  "type": "comment",
+  "z": "43656ae40155494c",
+  "name": "Set your broker and email account in the MQTT and e-mail nodes. Works for any number of tanks with base topics lpg/<name>.",
+  "info": "",
+  "x": 420,
+  "y": 40,
+  "wires": []
+ },
+ {
+  "id": "f96794eba09341c2",
+  "type": "mqtt in",
+  "z": "43656ae40155494c",
+  "name": "all tank alerts",
+  "topic": "lpg/+/alert",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "17ec92d91b7d4a94",
+  "nl": false,
+  "rap": false,
+  "rh": 0,
+  "inputs": 0,
+  "x": 130,
+  "y": 100,
+  "wires": [
+   [
+    "08db07071fa443dd"
+   ]
+  ]
+ },
+ {
+  "id": "08db07071fa443dd",
+  "type": "rbe",
+  "z": "43656ae40155494c",
+  "name": "only on change",
+  "func": "rbe",
+  "gap": "",
+  "start": "",
+  "inout": "out",
+  "septopics": true,
+  "property": "payload",
+  "topi": "topic",
+  "x": 320,
+  "y": 100,
+  "wires": [
+   [
+    "206b65a3c5b54ff7"
+   ]
+  ]
+ },
+ {
+  "id": "0d8058b4de9f42e0",
+  "type": "mqtt in",
+  "z": "43656ae40155494c",
+  "name": "all tank info",
+  "topic": "lpg/+/info",
+  "qos": "1",
+  "datatype": "json",
+  "broker": "17ec92d91b7d4a94",
+  "nl": false,
+  "rap": false,
+  "rh": 0,
+  "inputs": 0,
+  "x": 130,
+  "y": 160,
+  "wires": [
+   [
+    "206b65a3c5b54ff7"
+   ]
+  ]
+ },
+ {
+  "id": "206b65a3c5b54ff7",
+  "type": "function",
+  "z": "43656ae40155494c",
+  "name": "build email",
+  "func": "// Handles every tank: subscribe to lpg/+/alert and lpg/+/info\nconst base = msg.topic.replace(/\\/(alert|info)$/, '');\nconst tanks = flow.get('lpgTanks') || {};\n\nif (msg.topic.endsWith('/info')) {            // tank name + suppliers (retained)\n    tanks[base] = msg.payload;\n    flow.set('lpgTanks', tanks);\n    return null;\n}\nif (msg.retain) return null;                  // old state replayed on (re)connect - no email\n\nconst info = tanks[base] || {};\nconst name = info.tank || base;\nlet body;\nif (msg.payload === 'low') {\n    msg.topic = 'LPG level low: ' + name;\n    body = 'The gas level in ' + name + ' has dropped below ' +\n           (info.low_alert_pct ? info.low_alert_pct + '%' : 'the warning level') +\n           '.\\n\\nTime to arrange a refill.';\n    (info.suppliers || []).forEach((s, n) => {\n        body += '\\n\\n' + (n ? 'Alternative' : 'Preferred') + ' supplier: ' + (s.name || '');\n        if (s.phone)   body += '\\nPhone: ' + s.phone;\n        if (s.email)   body += '\\nEmail: ' + s.email;\n        if (s.web)     body += '\\nWebsite: ' + s.web;\n        if (s.account) body += '\\nAccount number: ' + s.account;\n        if (s.address) body += '\\nAddress: ' + s.address.replace(/\\n/g, ', ');\n    });\n} else if (msg.payload === 'ok') {\n    msg.topic = 'LPG level back to normal: ' + name;\n    body = 'The gas level in ' + name + ' is back above the warning level.';\n} else {\n    return null;\n}\nif (info.url) body += '\\n\\nTank status page: ' + info.url;\nmsg.payload = body;\nreturn msg;",
+  "outputs": 1,
+  "x": 510,
+  "y": 120,
+  "wires": [
+   [
+    "5e67f1fbc2294c08"
+   ]
+  ]
+ },
+ {
+  "id": "5e67f1fbc2294c08",
+  "type": "e-mail",
+  "z": "43656ae40155494c",
+  "server": "smtp.example.com",
+  "port": "465",
+  "secure": true,
+  "tls": true,
+  "authtype": "BASIC",
+  "name": "you@example.com",
+  "dname": "Email alert",
+  "x": 700,
+  "y": 120,
+  "wires": []
+ },
+ {
+  "id": "17ec92d91b7d4a94",
+  "type": "mqtt-broker",
+  "name": "Your broker",
+  "broker": "192.168.1.10",
+  "port": "1883",
+  "clientid": "",
+  "autoConnect": true,
+  "usetls": false,
+  "protocolVersion": "4",
+  "keepalive": "60",
+  "cleansession": true
+ }
+]
